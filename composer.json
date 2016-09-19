@@ -1,0 +1,14 @@
+{
+  "name": "drupal/commerce_usaepay",
+  "type": "drupal-module",
+  "description": "Provides Commerce integration for USAePay.",
+  "keywords": ["Drupal"],
+  "license": "GPL-2.0+",
+  "homepage": "https://www.drupal.org/project/commerce_usaepay",
+  "minimum-stability": "dev",
+  "support": {
+    "issues": "https://www.drupal.org/project/issues/commerce_usaepay",
+    "source": "http://cgit.drupalcode.org/commerce_usaepay"
+  },
+  "require": { }
+}
