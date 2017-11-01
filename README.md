@@ -1,6 +1,6 @@
 # Commerce USAePay
 
-Provides Drupal Commerce integration for USAePay gateway .
+Provides Drupal Commerce integration for USAePay gateway.
 
 ## Prerequisites
 

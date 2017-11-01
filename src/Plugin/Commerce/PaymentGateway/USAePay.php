@@ -52,7 +52,12 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
         $wsdl = 'https://usaepay.com/soap/gate/' . $this->configuration['wsdl_key'] . '/usaepay.wsdl';
       }
 
-      $this->soapClient = new SoapClient($wsdl);
+      try {
+        $this->soapClient = new SoapClient($wsdl);
+      }
+      catch (SoapFault $e) {
+        throw new PaymentGatewayException($e->getMessage());
+      }
     }
   }
 
@@ -168,7 +173,14 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
         ]
       ];
 
-      $response = $this->soapClient->runSale($this->buildToken(), $transaction_details);
+unset($_SESSION['card_data']);
+
+      if ($capture) {
+        $response = $this->soapClient->runSale($this->buildToken(), $transaction_details);
+      }
+      else {
+        $response = $this->soapClient->runAuthOnly($this->buildToken(), $transaction_details);
+      }
     }
     catch (SoapFault $e) {
       throw new PaymentGatewayException($e->getMessage());
@@ -321,7 +333,7 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
     $cust_num = NULL;
     if ($owner && $owner->isAuthenticated()) {
       $cust_num = $this->getRemoteCustomerId($owner);
-	}
+    }
 
     $arr_billing_address = [
       'FirstName' => $address->getGivenName(),
@@ -386,6 +398,8 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
         ];
 
         $cust_num = $this->soapClient->addCustomer($this->buildToken(), $customer_object);
+        $this->soapClient->addCustomerPaymentMethod($this->buildToken(), $cust_num, 
+          $arr_payment_method, true, false);
       } 
       catch(SoapFault $e) {
         throw new PaymentGatewayException($e->getMessage());
