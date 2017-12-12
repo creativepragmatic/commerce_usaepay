@@ -13,9 +13,8 @@ use Drupal\commerce_payment\PaymentMethodTypeManager;
 use Drupal\commerce_payment\PaymentTypeManager;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OnsitePaymentGatewayBase;
 use Drupal\commerce_price\Price;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use \SoapClient;
-use \SoapFault;
+use SoapClient;
+use SoapFault;
 
 /**
  * Provides the USAePay payment gateway.
@@ -48,7 +47,8 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
     if (!empty($this->configuration['wsdl_key'])) {
       if ($this->getMode() === 'test') {
         $wsdl = 'https://sandbox.usaepay.com/soap/gate/' . $this->configuration['wsdl_key'] . '/usaepay.wsdl';
-      } else {
+      }
+      else {
         $wsdl = 'https://usaepay.com/soap/gate/' . $this->configuration['wsdl_key'] . '/usaepay.wsdl';
       }
 
@@ -82,7 +82,7 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
       '#type' => 'textfield',
       '#title' => $this->t('WSDL Key'),
       '#default_value' => $this->configuration['wsdl_key'],
-      '#description' => $this->t('WSDL API endpoint key generated from \'https://sandbox.usaepay.com/_developer/app/login\'.  Ex: https://www.usaepay.com/soap/gate/<strong>ABCD1234</strong>/usaepay.wsdl.'),
+      '#description' => $this->t("WSDL API endpoint key generated from 'https://sandbox.usaepay.com/_developer/app/login'.  Ex: https://www.usaepay.com/soap/gate/<strong>ABCD1234</strong>/usaepay.wsdl."),
       '#required' => TRUE,
     ];
 
@@ -98,7 +98,7 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
       '#type' => 'textfield',
       '#title' => $this->t('PIN for Source Key'),
       '#default_value' => $this->configuration['pin'],
-      '#description' => $this->t('While USAePay makes PIN numbers optional it is recommended that you always use a PIN and since the \'sale\' method of the USAePay SOAP API requires it, it is a mandatory field for this module.'),
+      '#description' => $this->t("While USAePay makes PIN numbers optional it is recommended that you always use a PIN and since the 'sale' method of the USAePay SOAP API requires it, it is a mandatory field for this module."),
       '#required' => TRUE,
     ];
 
@@ -109,7 +109,6 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    parent::validateConfigurationForm($form, $form_state);
 
   }
 
@@ -140,49 +139,30 @@ class USAePay extends OnsitePaymentGatewayBase implements USAePayInterface {
     $amount = $payment->getAmount();
     $address = $payment_method->getBillingProfile()->get('address')->first();
 
+    if ($capture) {
+      $command = 'Sale';
+    }
+    else {
+      $command = 'AuthOnly';
+    }
+
     try {
-      $transaction_details = [
-        'AccountHolder' => $address->getGivenName() . ' ' . $address->getFamilyName(),
+      $transaction_request = [
+        'Command' => $command,
         'Details' => [
-          'Invoice' => $order->getOrderNumber(),
           'OrderID' => $order->id(),
           'Description' => 'Purchase from website',
           'Amount' => $amount->getNumber(),
-          'Currency' => $amount->getCurrencyCode(),
         ],
-        'CreditCardData' => [
-'CardNumber' => $_SESSION['card_data']['number'],
-'CardExpiration' => $_SESSION['card_data']['expiration'],
-'CardCode' => $_SESSION['card_data']['code'],
-          'AvsStreet' => $address->getAddressLine1(),
-          'AvsZip' => $address->getPostalCode(),
-        ],
-        'ClientIP' => $order->getIpAddress(),
-        'CustomerID' => $order->getCustomerId(),
-        'BillingAddress' => [
-          'FirstName' => $address->getGivenName(),
-          'LastName' => $address->getFamilyName(),
-          'Company' => $address->getOrganization(),
-          'Street' => $address->getAddressLine1(),
-          'Street2' => $address->getAddressLine2(),
-          'City' => $address->getLocality(),
-          'State' => $address->getAdministrativeArea(),
-          'Zip' => $address->getPostalCode(),
-          'Country' => $address->getCountryCode(),
-          'Email' => $order->getEmail(),
-        ]
       ];
 
-unset($_SESSION['card_data']);
-
-      if ($capture) {
-        $response = $this->soapClient->runSale($this->buildToken(), $transaction_details);
-      }
-      else {
-        $response = $this->soapClient->runAuthOnly($this->buildToken(), $transaction_details);
-      }
+      $response = $this->soapClient->runCustomerTransaction($this->buildToken(),
+        $payment_method->getRemoteId(), 0, $transaction_request);
     }
     catch (SoapFault $e) {
+      throw new PaymentGatewayException($e->faultstring);
+    }
+    catch (Exception $e) {
       throw new PaymentGatewayException($e->getMessage());
     }
 
@@ -210,6 +190,9 @@ unset($_SESSION['card_data']);
       $response = $this->soapClient->captureTransaction($this->buildToken(), $ref_num, $number, 'ReAuth');
     }
     catch (SoapFault $e) {
+      throw new PaymentGatewayException($e->faultstring);
+    }
+    catch (Exception $e) {
       throw new PaymentGatewayException($e->getMessage());
     }
 
@@ -230,6 +213,9 @@ unset($_SESSION['card_data']);
       $response = $this->soapClient->voidTransaction($this->buildToken(), $ref_num);
     }
     catch (SoapFault $e) {
+      throw new PaymentGatewayException($e->faultstring);
+    }
+    catch (Exception $e) {
       throw new PaymentGatewayException($e->getMessage());
     }
 
@@ -252,6 +238,9 @@ unset($_SESSION['card_data']);
       $response = $this->soapClient->refundTransaction($this->buildToken(), $ref_num, $number);
     }
     catch (SoapFault $e) {
+      throw new PaymentGatewayException($e->faultstring);
+    }
+    catch (Exception $e) {
       throw new PaymentGatewayException($e->getMessage());
     }
 
@@ -297,11 +286,14 @@ unset($_SESSION['card_data']);
 
     try {
       $methods = $this->soapClient->getCustomerPaymentMethods($this->buildToken(), $cust_num);
-      foreach($methods as $method) {
+      foreach ($methods as $method) {
         $this->soapClient->deleteCustomerPaymentMethod($this->buildToken(), $cust_num, $method->MethodID);
       }
-    } 
-    catch(SoapFault $e) {
+    }
+    catch (SoapFault $e) {
+      throw new PaymentGatewayException($e->faultstring);
+    }
+    catch (Exception $e) {
       throw new PaymentGatewayException($e->getMessage());
     }
 
@@ -345,7 +337,7 @@ unset($_SESSION['card_data']);
       'State' => $address->getAdministrativeArea(),
       'Zip' => $address->getPostalCode(),
       'Country' => $address->getCountryCode(),
-      'Email' => $owner->getEmail()
+      'Email' => $owner->getEmail(),
     ];
 
     $arr_payment_method = [
@@ -362,21 +354,24 @@ unset($_SESSION['card_data']);
         $customer_object->BillingAddress = $arr_billing_address;
         $this->soapClient->updateCustomer($this->buildToken(), $cust_num, $customer_object);
 
-        $method_stored = false;
+        $method_stored = FALSE;
         foreach ($customer_object->PaymentMethods as $method) {
-	      if (substr($method->CardNumber, -4) === substr($arr_payment_method['CardNumber'], -4)
+          if (substr($method->CardNumber, -4) === substr($arr_payment_method['CardNumber'], -4)
               && $method->CardExpiration === $arr_payment_method['CardExpiration']) {
-            $method_stored = true;
+            $method_stored = TRUE;
             break;
           }
         }
 
         if (!$method_stored) {
           $this->soapClient->addCustomerPaymentMethod($this->buildToken(),
-            $cust_num, $arr_payment_method, true, false);
+            $cust_num, $arr_payment_method, TRUE, FALSE);
         }
-      } 
-      catch(SoapFault $e) {
+      }
+      catch (SoapFault $e) {
+        throw new PaymentGatewayException($e->faultstring);
+      }
+      catch (Exception $e) {
         throw new PaymentGatewayException($e->getMessage());
       }
     }
@@ -384,24 +379,27 @@ unset($_SESSION['card_data']);
       try {
         $customer_object = [
           'CustomerID' => $owner->id(),
-          'OrderID' => rand(),
           'BillingAddress' => $arr_billing_address,
           'PaymentMethods' => [$arr_payment_method],
-          'Enabled' => false,
+          'Enabled' => FALSE,
           'Schedule' => '',
           'NumLeft' => '',
           'Next' => '',
           'Amount' => '',
           'Description' => '',
-          'SendReceipt' => false,
+          'SendReceipt' => FALSE,
           'ReceiptNote' => '',
+          'OrderID' => rand(),
         ];
 
         $cust_num = $this->soapClient->addCustomer($this->buildToken(), $customer_object);
-        $this->soapClient->addCustomerPaymentMethod($this->buildToken(), $cust_num, 
-          $arr_payment_method, true, false);
-      } 
-      catch(SoapFault $e) {
+        $this->soapClient->addCustomerPaymentMethod($this->buildToken(), $cust_num,
+          $arr_payment_method, TRUE, FALSE);
+      }
+      catch (SoapFault $e) {
+        throw new PaymentGatewayException($e->faultstring);
+      }
+      catch (Exception $e) {
         throw new PaymentGatewayException($e->getMessage());
       }
 
@@ -410,12 +408,6 @@ unset($_SESSION['card_data']);
         $owner->save();
       }
     }
-
-$_SESSION['card_data'] = [
-  'number' => $payment_details['number'],
-  'expiration' => $payment_details['expiration']['month'] . substr($payment_details['expiration']['year'], -2),
-  'code' => $payment_details['security_code'],
-];
 
     return [
       'customer_number' => $cust_num,
@@ -427,31 +419,34 @@ $_SESSION['card_data'] = [
   }
 
   /**
-   * Builds ueSecurityToken object required to securely identify the merchant
-   * to the gateway.
+   * Builds ueSecurityToken object for secure merchant identification.
+   *
+   * @return array
+   *   An array with the security token details.
    */
   private function buildToken() {
 
-    // generate random seed value
-    $seed = microtime(true) . rand();
+    // Generate random seed value.
+    $seed = microtime(TRUE) . rand();
 
-    // assemble prehash data
+    // Assemble prehash data.
     $prehash = $this->configuration['source_key'] . $seed . trim($this->configuration['pin']);
 
-    // hash the data
+    // Hash the data.
     $hash = sha1($prehash);
 
-    // assemble ueSecurityToken as an array
+    // Assemble ueSecurityToken as an array.
     $token = [
       'SourceKey' => $this->configuration['source_key'],
       'PinHash' => [
         'Type' => 'sha1',
         'Seed' => $seed,
-        'HashValue' => $hash
+        'HashValue' => $hash,
       ],
-      'ClientIP' => $_SERVER['REMOTE_ADDR'],
+      'ClientIP' => \Drupal::request()->getClientIp(),
     ];
 
     return $token;
   }
+
 }
